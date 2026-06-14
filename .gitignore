@@ -1,0 +1,19 @@
+# secrets
+*.agekey
+age.key
+*.dec.yaml
+*.decrypted.*
+.sops-key*
+secrets.local.*
+
+# ansible
+.ansible
+*.retry
+ansible/inventory.local.ini
+
+# editor
+.idea/
+.zed/
+
+# misc
+.DS_Store
