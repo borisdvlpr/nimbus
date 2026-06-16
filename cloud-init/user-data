@@ -1,0 +1,37 @@
+#cloud-config
+# nimbus — headless first-boot config for Ubuntu Server 24.04 (Raspberry Pi).
+#
+# Purpose: create the login user and bring the node onto your Tailscale tailnet with
+# Tailscale SSH, so Ansible can take over over the tailnet. All real configuration
+# (cgroups, sysctls, Docker, Kind, Flux) is done by Ansible, so this file stays minimal.
+#
+# This is a TEMPLATE. Before flashing:
+#   cp cloud-init/user-data cloud-init/user-data.local   (user-data.local is git-ignored)
+#   then replace tskey-auth-REPLACE_ME below with your real, single-use, tagged auth key,
+#   and flash user-data.local as `user-data` on the system-boot partition.
+# NEVER commit a copy containing a real auth key.
+
+hostname: nimbus
+manage_etc_hosts: true
+
+# No traditional SSH access: no password, no authorized keys. Access is via Tailscale SSH.
+# The system sshd is harmless at first boot (it accepts no logins) and Ansible masks it later.
+ssh_pwauth: false
+disable_root: true
+
+users:
+  - name: nimbus
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+
+package_update: true
+package_upgrade: false        # keep first boot fast; Ansible owns updates
+packages:
+  - ca-certificates
+  - curl
+
+runcmd:
+  - ['sh', '-c', 'curl -fsSL https://tailscale.com/install.sh | sh']
+  - ['tailscale', 'up', '--ssh', '--hostname=nimbus', '--advertise-tags=tag:nimbus', '--auth-key=tskey-auth-REPLACE_ME']
