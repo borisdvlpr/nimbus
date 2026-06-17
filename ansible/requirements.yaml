@@ -1,0 +1,4 @@
+---
+collections:
+  - name: ansible.posix       # sysctl, mount
+  - name: community.general   # timezone, locale_gen
