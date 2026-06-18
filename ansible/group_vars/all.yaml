@@ -1,0 +1,127 @@
+---
+# =============================================================================
+# nimbus — Ansible configuration contract
+#
+# Consumed by the roles delivered in increment 2. Edit values here; the roles
+# stay generic. Everything needed to reproduce the host + cluster lives in git.
+# =============================================================================
+
+# --- Identity / locale -------------------------------------------------------
+homelab_user: nimbus # must match the cloud-init user AND inventory ansible_user
+timezone: Europe/Lisbon
+locale: en_US.UTF-8
+
+# --- Remote access (Tailscale) ----------------------------------------------
+# tailscaled runs on the HOST (one daemon, ~40 MB), not as cluster pods. It provides:
+#   - host shell via Tailscale SSH (identity/ACL based; replaces traditional SSH)
+#   - reachability for the Kubernetes API and for Traefik's host ports, over the tailnet
+# The auth key is a SECRET supplied at flash time via cloud-init — never stored here or in git.
+tailscale:
+  hostname: nimbus
+  tag: "tag:nimbus"
+  ssh: true # Tailscale SSH
+  accept_dns: true # MagicDNS
+  # advertise_routes: []       # optional subnet routing; off by default
+
+# --- Host tuning (required for Kind on Ubuntu/Pi) ----------------------------
+host_tuning:
+  disable_openssh_server: true # mask the unused system sshd; rely on Tailscale SSH (console = recovery)
+  enable_memory_cgroup: true # append `cgroup_enable=memory cgroup_memory=1` to cmdline
+  cmdline_path: /boot/firmware/cmdline.txt # Ubuntu-on-Pi location
+  disable_unattended_reboot: true
+  zram_enabled: true
+  zram_percent: 50
+  sysctls:
+    fs.inotify.max_user_watches: 524288
+    fs.inotify.max_user_instances: 512
+    vm.max_map_count: 262144
+
+# --- Storage -----------------------------------------------------------------
+# mode: local -> persistent data on the boot disk (SD/eMMC) under base_dir
+# mode: ssd   -> persistent data on an external USB SSD (see ssd: block)
+# Cluster / PV / app manifests are IDENTICAL in both modes; only the host path moves.
+storage:
+  mode: local
+  base_dir: /srv/nimbus
+  volumes_subdir: volumes # PV host dirs: <data_dir>/<volumes_subdir>/<name>
+  relocate_docker_data_root: false # set true only in ssd mode (moves /var/lib/docker onto the SSD)
+  ssd:
+    fs_label: NIMBUS_SSD # label the SSD filesystem; mounted by label, never by /dev/sdX
+    mount_point: /mnt/data
+    filesystem: ext4
+    format_if_unformatted: false
+# Derived in the storage role:
+#   homelab_data_dir = (storage.mode == 'ssd') ? storage.ssd.mount_point : storage.base_dir
+#   volumes_dir      = "{{ homelab_data_dir }}/{{ storage.volumes_subdir }}"
+# Static hostPath PVs bind to fixed IN-NODE paths via Kind extraMounts, so a cluster recreate
+# or host reboot reattaches the same data.
+
+# --- Tooling versions --------------------------------------------------------
+versions:
+  kind: "0.31.0"
+  kubectl: "1.35.6"
+  helm: "4.1.4"
+  flux: "2.8.5"
+  sops: "3.13.1"
+  age: "1.x.y"
+  tailscale: "stable" # Installed from official channel (no pinning needed)
+
+# --- Kind cluster ------------------------------------------------------------
+kind:
+  cluster_name: nimbus
+  node_image: "kindest/node:v1.35.5@sha256:ce977ae6d65918d0b58a5f8b5e940429c2ce42fa3a5619ec2bbc60b949c0ac95"
+  ingress_node_label: "ingress-ready=true"
+  host_port_http: 80
+  host_port_https: 443
+  node_container_restart_policy: "unless-stopped" # help survive host reboots
+
+# --- Kubernetes API exposure (over the tailnet) ------------------------------
+# The kind_cluster role binds the API server so it is reachable on the tailnet and adds the
+# node's tailnet identity to the API server certificate, so kubectl over the tailnet verifies TLS.
+apiserver:
+  bind: tailnet # tailnet (bind to the Tailscale IP, discovered at create time) | localhost
+  port: 6443
+  extra_sans:
+    - nimbus # MagicDNS short name; the FQDN + tailnet IP are added at create time
+  kubeconfig_server: "https://nimbus:6443" # what the distributed workstation kubeconfig points at
+
+# --- GitOps (Flux) -----------------------------------------------------------
+flux:
+  # For ssh bootstrap use the SSH URL (ssh://git@github.com/<you>/nimbus.git);
+  # for https bootstrap use the HTTPS URL.
+  git_url: "ssh://git@github.com:borisdvlpr/nimbus.git"
+  git_host: github.com
+  git_branch: main
+  cluster_path: clusters/nimbus
+  components_extra: [] # leave image-automation / notification OFF to save RAM
+
+# --- Ingress -----------------------------------------------------------------
+ingress:
+  provider: traefik
+  route_api: gateway # gateway (HTTPRoute, recommended) | ingress (classic) — see architecture.md
+
+# --- Observability (kube-prometheus-stack, trimmed for 4 GB) -----------------
+observability:
+  enabled: true
+  scrape_interval: 60s
+  prometheus:
+    retention: 7d
+    retention_size: 3GB # hard cap — important while running on SD
+    persist: true # static PV; moves to the SSD on migration
+  grafana:
+    enabled: true
+  alertmanager:
+    enabled: false # off by default to protect the RAM budget
+  node_exporter:
+    enabled: true
+  kube_state_metrics:
+    enabled: true
+
+# --- Bootstrap inputs (paths on the CONTROLLER to your secret files) ----------
+# These are file PATHS, not secrets; the files themselves live outside the repo.
+# Set real paths here, or override at the command line with --extra-vars.
+bootstrap:
+  age_key_path: "~/.config/sops/age/keys.txt" # your age private key (SOPS decryption)
+  git_auth: ssh # ssh | https
+  git_private_key_path: "~/.ssh/nimbus_deploy" # repo deploy key with WRITE access (ssh auth)
+  git_token: "" # PAT for https auth; pass via --extra-vars, not here
