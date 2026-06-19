@@ -1,0 +1,103 @@
+---
+# Host preparation for running Kind on Ubuntu/Pi, plus Tailscale-SSH hardening.
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Ensure locale is generated
+  community.general.locale_gen:
+    name: "{{ locale }}"
+    state: present
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - jq
+      - apt-transport-https
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# --- Tailscale SSH hardening: the system OpenSSH server is unused ---
+- name: Mask the system SSH server and socket (access is Tailscale SSH)
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  loop:
+    - ssh.socket
+    - ssh.service
+  failed_when: false   # tolerate either unit being absent on this image
+  when: host_tuning.disable_openssh_server | bool
+
+# --- Memory cgroup (Pi requires this for kubelet to enforce limits) ---
+- name: Read current kernel cmdline
+  ansible.builtin.slurp:
+    src: "{{ host_tuning.cmdline_path }}"
+  register: cmdline_raw
+  when: host_tuning.enable_memory_cgroup | bool
+
+- name: Compute current cmdline string
+  ansible.builtin.set_fact:
+    cmdline_content: "{{ (cmdline_raw.content | b64decode | trim) }}"
+  when: host_tuning.enable_memory_cgroup | bool
+
+- name: Ensure memory cgroup params are present (single-line cmdline)
+  ansible.builtin.copy:
+    dest: "{{ host_tuning.cmdline_path }}"
+    content: "{{ cmdline_content }} cgroup_enable=memory cgroup_memory=1\n"
+    backup: true
+  when:
+    - host_tuning.enable_memory_cgroup | bool
+    - "'cgroup_enable=memory' not in cmdline_content"
+  register: cmdline_changed
+
+# --- Kernel sysctls needed by Kind / Prometheus / controllers ---
+- name: Apply sysctls
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-nimbus.conf
+    sysctl_set: true
+    state: present
+    reload: true
+  loop: "{{ host_tuning.sysctls | dict2items }}"
+
+# --- zram (compressed-RAM swap; headroom without SD writes) ---
+- name: Install zram-tools
+  ansible.builtin.apt:
+    name: zram-tools
+    state: present
+  when: host_tuning.zram_enabled | bool
+
+- name: Configure zram size
+  ansible.builtin.lineinfile:
+    path: /etc/default/zramswap
+    regexp: "^#?{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    create: true
+  loop:
+    - { key: "ALGO", value: "zstd" }
+    - { key: "PERCENT", value: "{{ host_tuning.zram_percent }}" }
+  when: host_tuning.zram_enabled | bool
+  notify: restart zramswap
+
+# --- No surprise reboots from unattended-upgrades ---
+- name: Disable automatic reboot from unattended-upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/52nimbus-no-reboot
+    content: "Unattended-Upgrade::Automatic-Reboot \"false\";\n"
+  when: host_tuning.disable_unattended_reboot | bool
+
+# --- Apply the cmdline change (only if it changed) ---
+- name: Reboot to activate the memory cgroup
+  ansible.builtin.reboot:
+    msg: "Rebooting to apply kernel cmdline (memory cgroup)"
+    post_reboot_delay: 30    # give tailscaled time to rejoin the tailnet
+    reboot_timeout: 600
+  when: cmdline_changed is defined and cmdline_changed.changed

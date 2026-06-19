@@ -1,0 +1,6 @@
+---
+- name: restart zramswap
+  ansible.builtin.systemd:
+    name: zramswap
+    state: restarted
+    enabled: true
