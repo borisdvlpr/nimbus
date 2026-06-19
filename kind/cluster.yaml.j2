@@ -1,0 +1,41 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: {{ kind.cluster_name }}
+networking:
+  # Bind the API server on the tailnet interface (or localhost) and a fixed port.
+  apiServerAddress: "{{ tailnet_ip if apiserver.bind == 'tailnet' else '127.0.0.1' }}"
+  apiServerPort: {{ apiserver.port }}
+nodes:
+  - role: control-plane
+    image: {{ kind.node_image }}
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "{{ kind.ingress_node_label }}"
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          certSANs:
+            - localhost
+            - 127.0.0.1
+            - "{{ tailnet_ip }}"
+            - "{{ tailnet_fqdn }}"
+{% for san in apiserver.extra_sans %}
+            - "{{ san }}"
+{% endfor %}
+    # Tailnet-only ingress: map host 80/443 on the Tailscale IP into the node.
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: {{ kind.host_port_http }}
+        listenAddress: "{{ tailnet_ip if apiserver.bind == 'tailnet' else '0.0.0.0' }}"
+        protocol: TCP
+      - containerPort: 443
+        hostPort: {{ kind.host_port_https }}
+        listenAddress: "{{ tailnet_ip if apiserver.bind == 'tailnet' else '0.0.0.0' }}"
+        protocol: TCP
+    # Persist stateful data on the host so cluster recreate / reboot reattaches it.
+    extraMounts:
+      - hostPath: {{ volumes_dir }}
+        containerPath: /mnt/volumes
