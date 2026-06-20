@@ -1,0 +1,84 @@
+---
+# Create the single-node Kind cluster, reachable on the tailnet, and distribute a kubeconfig
+# to the controller that points at the node's MagicDNS name.
+
+- name: Ensure config directory
+  ansible.builtin.file:
+    path: /etc/nimbus
+    state: directory
+    mode: "0755"
+
+- name: Discover the node's tailnet IPv4
+  ansible.builtin.command: tailscale ip -4
+  register: ts_ip
+  changed_when: false
+
+- name: Set tailnet_ip fact
+  ansible.builtin.set_fact:
+    tailnet_ip: "{{ ts_ip.stdout_lines[0] | trim }}"
+
+- name: Read tailscale status
+  ansible.builtin.command: tailscale status --json
+  register: ts_status
+  changed_when: false
+
+- name: Set tailnet_fqdn fact (strip trailing dot)
+  ansible.builtin.set_fact:
+    tailnet_fqdn: "{{ (ts_status.stdout | from_json).Self.DNSName | regex_replace('\\.$', '') }}"
+
+- name: Render Kind cluster config
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../kind/cluster.yaml.j2"
+    dest: /etc/nimbus/kind-cluster.yaml
+    mode: "0644"
+
+- name: List existing Kind clusters
+  ansible.builtin.command: kind get clusters
+  register: kind_clusters
+  changed_when: false
+  failed_when: false
+
+- name: Create the Kind cluster
+  ansible.builtin.command: kind create cluster --config /etc/nimbus/kind-cluster.yaml --wait 180s
+  when: kind.cluster_name not in (kind_clusters.stdout_lines | default([]))
+
+- name: Set restart policy on the node container (survive reboots)
+  ansible.builtin.command: "docker update --restart={{ kind.node_container_restart_policy }} {{ kind.cluster_name }}-control-plane"
+  changed_when: false
+
+- name: Export kubeconfig for root
+  ansible.builtin.command: "kind export kubeconfig --name {{ kind.cluster_name }}"
+  changed_when: false
+
+- name: Ensure the login user's kube directory exists
+  ansible.builtin.file:
+    path: "/home/{{ homelab_user }}/.kube"
+    state: directory
+    owner: "{{ homelab_user }}"
+    group: "{{ homelab_user }}"
+    mode: "0700"
+
+- name: Copy kubeconfig to the login user (on-node convenience)
+  ansible.builtin.copy:
+    src: /root/.kube/config
+    dest: "/home/{{ homelab_user }}/.kube/config"
+    remote_src: true
+    owner: "{{ homelab_user }}"
+    group: "{{ homelab_user }}"
+    mode: "0600"
+
+- name: Build a workstation kubeconfig pointing at the MagicDNS name
+  ansible.builtin.shell: >
+    set -o pipefail &&
+    kind get kubeconfig --name {{ kind.cluster_name }}
+    | sed 's#server: https://[^[:space:]]*#server: {{ apiserver.kubeconfig_server }}#'
+    > /tmp/nimbus-workstation.kubeconfig
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Fetch the workstation kubeconfig to the controller
+  ansible.builtin.fetch:
+    src: /tmp/nimbus-workstation.kubeconfig
+    dest: "{{ playbook_dir }}/../kubeconfig/nimbus.yaml"
+    flat: true
