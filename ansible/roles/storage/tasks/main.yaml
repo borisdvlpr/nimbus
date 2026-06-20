@@ -1,0 +1,41 @@
+---
+# Storage abstraction. In 'local' mode everything lives on the boot disk under base_dir.
+# In 'ssd' mode the external SSD is mounted by label. The cluster/PV manifests reference
+# fixed in-node paths, so where the data physically lives is decided here only.
+
+- name: Derive data directory
+  ansible.builtin.set_fact:
+    homelab_data_dir: "{{ storage.ssd.mount_point if storage.mode == 'ssd' else storage.base_dir }}"
+
+- name: Derive volumes directory
+  ansible.builtin.set_fact:
+    volumes_dir: "{{ homelab_data_dir }}/{{ storage.volumes_subdir }}"
+
+# --- SSD mode: make the external disk available (data migration is a separate runbook) ---
+- name: (SSD) Prepare and mount the external SSD
+  when: storage.mode == 'ssd'
+  block:
+    - name: (SSD) Ensure mount point exists
+      ansible.builtin.file:
+        path: "{{ storage.ssd.mount_point }}"
+        state: directory
+        mode: "0755"
+
+    - name: (SSD) Mount the SSD by filesystem label
+      ansible.posix.mount:
+        path: "{{ storage.ssd.mount_point }}"
+        src: "LABEL={{ storage.ssd.fs_label }}"
+        fstype: "{{ storage.ssd.filesystem }}"
+        opts: "defaults,noatime"
+        state: mounted
+    # NOTE: relocating Docker's data-root onto the SSD and migrating existing volume
+    # data (stop workloads -> rsync -> recreate cluster) is the SSD migration runbook,
+    # delivered separately. It is intentionally NOT run automatically here.
+
+- name: Ensure persistent volumes directory exists
+  ansible.builtin.file:
+    path: "{{ volumes_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
