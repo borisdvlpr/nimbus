@@ -1,0 +1,68 @@
+---
+# Install the ARM64 toolchain on the node. Versions come from group_vars/all.yml and MUST be
+# pinned to real releases before running. Downloads are checksum-verified for supply-chain
+# safety: kubectl and helm against their upstream published checksum files; kind, sops, and
+# flux against pinned digests in this role's defaults/main.yml. Those defaults are invalid on
+# purpose, so an unpinned build FAILS rather than installing an unverified binary.
+
+- name: Install age (provides age + age-keygen)
+  ansible.builtin.apt:
+    name: age
+    state: present
+
+- name: Install kind (checksum-verified via pinned digest)
+  ansible.builtin.get_url:
+    url: "https://kind.sigs.k8s.io/dl/v{{ versions.kind }}/kind-linux-arm64"
+    dest: /usr/local/bin/kind
+    mode: "0755"
+    checksum: "sha256:{{ tool_sha256.kind }}"
+
+- name: Install kubectl (checksum-verified against upstream)
+  ansible.builtin.get_url:
+    url: "https://dl.k8s.io/release/v{{ versions.kubectl }}/bin/linux/arm64/kubectl"
+    dest: /usr/local/bin/kubectl
+    mode: "0755"
+    checksum: "sha256:https://dl.k8s.io/release/v{{ versions.kubectl }}/bin/linux/arm64/kubectl.sha256"
+
+- name: Install sops (checksum-verified via pinned digest)
+  ansible.builtin.get_url:
+    url: "https://github.com/getsops/sops/releases/download/v{{ versions.sops }}/sops-v{{ versions.sops }}.linux.arm64"
+    dest: /usr/local/bin/sops
+    mode: "0755"
+    checksum: "sha256:{{ tool_sha256.sops }}"
+
+# helm and flux ship as tarballs; download (checksum-verified) first, then extract.
+- name: Download helm (checksum-verified against upstream)
+  ansible.builtin.get_url:
+    url: "https://get.helm.sh/helm-v{{ versions.helm }}-linux-arm64.tar.gz"
+    dest: "/tmp/helm-{{ versions.helm }}-arm64.tar.gz"
+    mode: "0644"
+    checksum: "sha256:https://get.helm.sh/helm-v{{ versions.helm }}-linux-arm64.tar.gz.sha256sum"
+
+- name: Extract helm
+  ansible.builtin.unarchive:
+    src: "/tmp/helm-{{ versions.helm }}-arm64.tar.gz"
+    dest: /tmp
+    remote_src: true
+    creates: /tmp/linux-arm64/helm
+
+- name: Install helm binary
+  ansible.builtin.copy:
+    src: /tmp/linux-arm64/helm
+    dest: /usr/local/bin/helm
+    mode: "0755"
+    remote_src: true
+
+- name: Download flux CLI (checksum-verified via pinned digest)
+  ansible.builtin.get_url:
+    url: "https://github.com/fluxcd/flux2/releases/download/v{{ versions.flux }}/flux_{{ versions.flux }}_linux_arm64.tar.gz"
+    dest: "/tmp/flux-{{ versions.flux }}-arm64.tar.gz"
+    mode: "0644"
+    checksum: "sha256:{{ tool_sha256.flux }}"
+
+- name: Install flux CLI
+  ansible.builtin.unarchive:
+    src: "/tmp/flux-{{ versions.flux }}-arm64.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    creates: /usr/local/bin/flux

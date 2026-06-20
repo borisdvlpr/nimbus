@@ -1,0 +1,17 @@
+---
+# SHA256 checksums for binaries fetched directly from GitHub releases (kind, sops, flux),
+# where there is no convenient per-file upstream checksum URL to point get_url at. These are
+# PLACEHOLDERS and are invalid on purpose: the download tasks fail until you replace each with
+# the real linux/arm64 checksum for the version pinned in group_vars/all.yml.
+#
+# Where to find them:
+#   kind  — the kind-linux-arm64 line in the release's checksum assets / release notes
+#   sops  — the *.linux.arm64 line in the sops release checksums
+#   flux  — the flux_<version>_linux_arm64.tar.gz line in flux_<version>_checksums.txt
+#
+# kubectl and helm are verified against their upstream checksum URLs in the role tasks, so
+# they are intentionally NOT listed here.
+tool_sha256:
+  kind: "8e1014e87c34901cc422a1445866835d1e666f2a61301c27e722bdeab5a1f7e4  kind-linux-arm64"
+  sops: "19576fb1734dbf8fb77eda0cf0f3a2218f99bf4d33b814318e5e10d6babb9820  sops-v3.13.1.linux.arm64"
+  flux: "24fd29c68294f09eebf0c673f898f5e4798030ccda17f46821ff161a11c8aa5a  flux_2.8.5_linux_arm64.tar.gz"
