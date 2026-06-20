@@ -1,0 +1,9 @@
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }{% if storage.mode == 'ssd' and storage.relocate_docker_data_root | bool %},
+  "data-root": "{{ storage.ssd.mount_point }}/docker"{% endif %}
+
+}
