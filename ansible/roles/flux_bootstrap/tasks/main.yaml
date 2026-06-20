@@ -1,0 +1,102 @@
+---
+# Install Flux and point it at this repository, then create the SOPS age secret so the
+# kustomize-controller can decrypt secrets. flux bootstrap is idempotent (re-running
+# reconciles). All cluster ops run on the node using root's kubeconfig.
+
+- name: Flux preflight check
+  ansible.builtin.command: flux check --pre
+  environment:
+    KUBECONFIG: /root/.kube/config
+  changed_when: false
+
+# Trim to the three controllers we actually use (drop notification-controller) to fit the
+# RAM budget; flux.components_extra (default empty) can opt extra controllers back in.
+- name: Compute Flux components arguments
+  ansible.builtin.set_fact:
+    flux_components_arg: "--components=source-controller,kustomize-controller,helm-controller"
+    flux_components_extra_arg: >-
+      {{ ('--components-extra=' + (flux.components_extra | join(',')))
+         if (flux.components_extra | length > 0) else '' }}
+
+- name: Ensure root .ssh exists
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    mode: "0700"
+
+# --- SSH bootstrap path ---
+- name: (ssh) Add the git host to known_hosts
+  ansible.builtin.shell: "ssh-keyscan -H {{ flux.git_host }} >> /root/.ssh/known_hosts"
+  args:
+    creates: /root/.ssh/known_hosts
+  when: bootstrap.git_auth == 'ssh'
+
+- name: (ssh) Copy the repo deploy key to the node (transient)
+  ansible.builtin.copy:
+    src: "{{ bootstrap.git_private_key_path }}"
+    dest: /root/.ssh/nimbus_deploy_key
+    mode: "0600"
+  when: bootstrap.git_auth == 'ssh'
+  no_log: true
+
+- name: (ssh) Bootstrap Flux
+  ansible.builtin.command: >
+    flux bootstrap git
+    --url={{ flux.git_url }}
+    --branch={{ flux.git_branch }}
+    --path={{ flux.cluster_path }}
+    {{ flux_components_arg }} {{ flux_components_extra_arg }}
+    --private-key-file=/root/.ssh/nimbus_deploy_key
+    --silent
+  environment:
+    KUBECONFIG: /root/.kube/config
+  when: bootstrap.git_auth == 'ssh'
+  no_log: true
+
+- name: (ssh) Remove the transient deploy key
+  ansible.builtin.file:
+    path: /root/.ssh/nimbus_deploy_key
+    state: absent
+  when: bootstrap.git_auth == 'ssh'
+
+# --- HTTPS bootstrap path ---
+- name: (https) Bootstrap Flux
+  ansible.builtin.command: >
+    flux bootstrap git
+    --url={{ flux.git_url }}
+    --branch={{ flux.git_branch }}
+    --path={{ flux.cluster_path }}
+    {{ flux_components_arg }} {{ flux_components_extra_arg }}
+    --token-auth=true
+    --silent
+  environment:
+    KUBECONFIG: /root/.kube/config
+    GIT_PASSWORD: "{{ bootstrap.git_token }}"
+  when: bootstrap.git_auth == 'https'
+  no_log: true
+
+# --- SOPS decryption key ---
+- name: Copy the age private key to the node (transient)
+  ansible.builtin.copy:
+    src: "{{ bootstrap.age_key_path }}"
+    dest: /root/nimbus-age.agekey
+    mode: "0600"
+  no_log: true
+
+- name: Create the SOPS age secret in flux-system
+  ansible.builtin.shell: >
+    set -o pipefail &&
+    kubectl create secret generic sops-age
+    --namespace=flux-system
+    --from-file=age.agekey=/root/nimbus-age.agekey
+    --dry-run=client -o yaml | kubectl apply -f -
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /root/.kube/config
+  no_log: true
+
+- name: Remove the transient age key
+  ansible.builtin.file:
+    path: /root/nimbus-age.agekey
+    state: absent
