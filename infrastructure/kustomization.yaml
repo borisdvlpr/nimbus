@@ -1,0 +1,5 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Placeholder — reconciles green with nothing to apply.
+# Increment 3 adds: Traefik (+ Gateway API CRDs), metrics-server, static PVs.
+resources: []
