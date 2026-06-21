@@ -1,0 +1,21 @@
+---
+# Bootstrap the nimbus node from a tailnet-reachable Ubuntu host to a running,
+# GitOps-reconciled single-node cluster. Idempotent: safe to re-run.
+#
+# Prereqs (see docs/01-bootstrap.md):
+#   - the node is on your tailnet and reachable as `nimbus` (inventory ansible_host)
+#   - versions are pinned and flux.git_url is set in group_vars/all.yml
+#   - the repo is pushed to flux.git_url
+#   - bootstrap secrets exist on the controller (age key + git deploy key)
+#   - collections installed:  ansible-galaxy install -r ansible/requirements.yml
+- name: Bootstrap nimbus
+  hosts: nimbus
+  become: true
+  gather_facts: true
+  roles:
+    - host_prep          # mask sshd, memory cgroup, sysctls, zram, no auto-reboot
+    - storage            # local/ssd abstraction, PV host dirs
+    - container_runtime  # Docker CE + log rotation
+    - tooling            # kind, kubectl, helm, flux, sops, age
+    - kind_cluster       # render config, create cluster, tailnet API SANs, kubeconfig
+    - flux_bootstrap     # install Flux, point it at the repo, wire SOPS decryption
