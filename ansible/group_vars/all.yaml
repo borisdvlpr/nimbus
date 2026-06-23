@@ -89,7 +89,7 @@ apiserver:
 flux:
   # For ssh bootstrap use the SSH URL (ssh://git@github.com/<you>/nimbus.git);
   # for https bootstrap use the HTTPS URL.
-  git_url: "ssh://git@github.com:borisdvlpr/nimbus.git"
+  git_url: "ssh://git@github.com/borisdvlpr/nimbus.git"
   git_host: github.com
   git_branch: main
   cluster_path: clusters/nimbus
