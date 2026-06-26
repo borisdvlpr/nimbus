@@ -12,6 +12,9 @@ nodes:
       - |
         kind: InitConfiguration
         nodeRegistration:
+          # Single-node cluster: drop the default control-plane NoSchedule taint
+          # so workloads (Traefik, metrics-server, apps) schedule on this node.
+          taints: []
           kubeletExtraArgs:
             node-labels: "{{ kind.ingress_node_label }}"
       - |
