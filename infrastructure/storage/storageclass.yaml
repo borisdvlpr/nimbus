@@ -1,0 +1,17 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nimbus-local
+# Static, node-local storage. There is no dynamic provisioner: each stateful
+# workload (Prometheus, Grafana, Postgres) declares its own PersistentVolume
+# alongside its manifests in a later increment, backed by a hostPath under
+# /mnt/volumes — a host directory bind-mounted into the Kind node, so the data
+# survives `kind delete` / reboot and is reattached on recreate.
+#
+#   WaitForFirstConsumer  -> defer PV binding until a consuming pod is scheduled
+#                            (correct for node-local volumes on a single node).
+#   reclaimPolicy Retain  -> never auto-delete the backing data on PVC removal.
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+allowVolumeExpansion: false
