@@ -1,19 +1,82 @@
+# ---------------------------------------------------------------------------
+# Infrastructure layer, reconciled in dependency order:
+#
+#   infra-gateway-api  (CRDs from the upstream project)  ->  infra-controllers
+#   infra-storage      (StorageClass; independent)
+#
+# Apps (clusters/nimbus/apps.yaml) depend on infra-controllers + infra-storage.
+# ---------------------------------------------------------------------------
+
+# Gateway API CRDs come straight from the upstream project at a pinned tag, in a
+# dedicated source so they version independently of the cluster and of Traefik.
+# (As of Traefik chart v3.7 the chart no longer ships these CRDs.)
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: gateway-api
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: https://github.com/kubernetes-sigs/gateway-api
+  ref:
+    tag: v1.5.1                 # standard channel. Pin; bump deliberately.
+  ignore: |
+    # Keep only the standard-channel CRD manifests; drop the rest of the repo.
+    /*
+    !/config
+    /config/*
+    !/config/crd
+---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: infrastructure
+  name: infra-gateway-api
   namespace: flux-system
 spec:
-  interval: 10m
+  interval: 1h
   retryInterval: 1m
   timeout: 5m
+  prune: true
+  wait: true                   # block dependents until the CRDs are Established
+  sourceRef:
+    kind: GitRepository
+    name: gateway-api
+  path: ./config/crd           # config/crd/kustomization.yaml = the standard channel
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-controllers
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-gateway-api   # Traefik's Gateway provider needs the CRDs present
+  interval: 1h
+  retryInterval: 2m
+  timeout: 10m                  # Helm installs (image pulls) are slow on a Pi
+  prune: true
+  wait: true
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./infrastructure
-  prune: true
-  wait: true
+  path: ./infrastructure/controllers
   decryption:
     provider: sops
     secretRef:
       name: sops-age
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-storage
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  prune: true
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./infrastructure/storage
