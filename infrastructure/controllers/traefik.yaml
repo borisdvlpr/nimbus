@@ -1,0 +1,70 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: traefik
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://traefik.github.io/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: traefik
+      version: "41.0.0"            # Proxy v3.7.5. Pin; bump deliberately.
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+        namespace: flux-system
+  install:
+    crds: CreateReplace            # chart ships its own CRDs (IngressRoute, Middleware, ...)
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    # --- Routing model: Gateway API only ---
+    providers:
+      kubernetesGateway:
+        enabled: true             # enables the provider AND auto-creates GatewayClass "traefik"
+      kubernetesIngress:
+        enabled: false            # we do not use classic Ingress objects
+    # The chart deploys this Gateway when the kubernetesGateway provider is on.
+    # HTTP-only for now: an HTTPS listener requires certificateRefs (cert-manager or
+    # Tailscale Serve — a later increment). Traffic is already encrypted end-to-end
+    # over the WireGuard tailnet, so plain HTTP on :80 is acceptable here.
+    gateway:
+      enabled: true
+      name: traefik-gateway
+      listeners:
+        web:
+          port: 8000              # MUST match ports.web.port below
+          protocol: HTTP
+          namespacePolicy:
+            from: All             # allow HTTPRoutes from any namespace (apps live elsewhere)
+    # No cloud load-balancer exists on Kind; a LoadBalancer Service would hang in
+    # <pending>. Traffic enters through the node's hostPort instead.
+    service:
+      spec:
+        type: ClusterIP
+    ports:
+      web:
+        hostPort: 80              # binds node:80 -> pod:8000; Kind maps tailnet:80 -> node:80
+    # Pin to the node we labelled `ingress-ready=true` in the Kind config.
+    nodeSelector:
+      ingress-ready: "true"
+    # Modest footprint for a 4GB Pi (see RAM budget in docs/architecture.md).
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 192Mi
