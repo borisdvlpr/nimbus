@@ -1,0 +1,71 @@
+# Static, node-local persistence for the observability stack.
+#
+# Both volumes are hostPaths under /mnt/volumes (a host directory bind-mounted into
+# the Kind node), so the data survives `kind delete` / reboot and reattaches on
+# recreate. reclaimPolicy Retain on every PV means data is never auto-deleted.
+#
+# Binding strategy (deterministic, no operator-generated PVC-name guessing):
+#   - Prometheus: a DEDICATED StorageClass with exactly one PV. The operator's
+#     generated PVC (class nimbus-prometheus) has only one candidate to bind to.
+#   - Grafana: an explicit PVC + a PV that claimRefs it by name.
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nimbus-prometheus
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+allowVolumeExpansion: false
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: prometheus-data
+  labels:
+    app.kubernetes.io/part-of: nimbus
+spec:
+  capacity:
+    storage: 4Gi                  # > retentionSize 3GB, leaving headroom
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nimbus-prometheus
+  hostPath:
+    path: /mnt/volumes/prometheus
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: grafana-data
+  labels:
+    app.kubernetes.io/part-of: nimbus
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nimbus-local
+  # Reserve this PV for exactly the Grafana PVC below.
+  claimRef:
+    namespace: monitoring
+    name: grafana
+  hostPath:
+    path: /mnt/volumes/grafana
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nimbus-local
+  resources:
+    requests:
+      storage: 1Gi
+  volumeName: grafana-data        # bind to the reserved PV above
