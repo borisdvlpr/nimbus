@@ -1,0 +1,129 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: prometheus-community
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://prometheus-community.github.io/helm-charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: monitoring
+spec:
+  interval: 30m
+  timeout: 15m                    # large chart; image pulls are slow on a Pi
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "87.2.1"           # Prometheus Operator v0.92.0. Pin; bump deliberately.
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  install:
+    crds: CreateReplace           # operator CRDs installed via Helm (no apply-size limit)
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    # ----------------------------------------------------------------------
+    # Trimmed for a single-node 4GB Pi. See RAM budget in docs/architecture.md.
+    # ----------------------------------------------------------------------
+    alertmanager:
+      enabled: false              # no paging in a homelab; reclaims memory
+
+    # These control-plane components listen on 127.0.0.1 inside Kind nodes, so
+    # their ServiceMonitors would be permanently "down". Disable to keep the
+    # Prometheus target list green. (kubelet, coreDNS, apiserver still scrape.)
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeProxy:
+      enabled: false
+    kubeEtcd:
+      enabled: false
+
+    # --- Prometheus ---
+    prometheus:
+      prometheusSpec:
+        scrapeInterval: 60s
+        evaluationInterval: 60s
+        retention: 7d
+        retentionSize: "3GB"      # hard cap; stays well under the 4Gi PV
+        replicas: 1
+        resources:
+          requests:
+            cpu: 100m
+            memory: 300Mi
+          limits:
+            memory: 600Mi
+        # Binds to the single PV in the dedicated nimbus-prometheus class
+        # (see persistence.yaml) — no PVC-name guessing required.
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: nimbus-prometheus
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 3Gi
+
+    # --- Prometheus Operator ---
+    prometheusOperator:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+
+    # --- kube-state-metrics (subchart) ---
+    kube-state-metrics:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 96Mi
+
+    # --- node-exporter (subchart; DaemonSet, one pod on the single node) ---
+    prometheus-node-exporter:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          memory: 48Mi
+
+    # --- Grafana (subchart) ---
+    grafana:
+      # Admin credentials come from a SOPS-encrypted Secret (grafana-admin.sops.yaml),
+      # NOT the chart's well-known default password.
+      admin:
+        existingSecret: grafana-admin
+        userKey: admin-user
+        passwordKey: admin-password
+      persistence:
+        enabled: true
+        type: pvc
+        existingClaim: grafana    # PVC declared in persistence.yaml
+      ingress:
+        enabled: false            # exposed via Gateway API HTTPRoute instead
+      resources:
+        requests:
+          cpu: 50m
+          memory: 96Mi
+        limits:
+          memory: 192Mi
+      grafana.ini:
+        server:
+          root_url: "http://grafana.nimbus/"
+        security:
+          cookie_secure: false    # tailnet-only over plain HTTP (WireGuard-encrypted)
