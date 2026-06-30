@@ -30,10 +30,12 @@
             packages = with pkgs; [
               ansible        # ansible-core plus the bundled community collections
               ansible-lint   # static analysis for playbooks and roles
+              kubectl
             ];
 
             shellHook = ''
               echo "Welcome to nimbus!"
+              alias k=kubectl
             '';
           };
         });
