@@ -80,3 +80,26 @@ spec:
     kind: GitRepository
     name: flux-system
   path: ./infrastructure/storage
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-observability
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers     # Gateway (Grafana HTTPRoute) + Gateway API CRDs
+    - name: infra-storage         # nimbus-local StorageClass (Grafana PV)
+  interval: 1h
+  retryInterval: 2m
+  timeout: 15m                    # kube-prometheus-stack is a large install on a Pi
+  prune: true
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./infrastructure/observability
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
