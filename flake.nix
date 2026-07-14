@@ -31,6 +31,7 @@
               ansible        # ansible-core plus the bundled community collections
               ansible-lint   # static analysis for playbooks and roles
               kubectl
+              age
             ];
 
             shellHook = ''
