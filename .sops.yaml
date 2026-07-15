@@ -1,0 +1,8 @@
+# SOPS creation rules. Encrypt only the secret payload fields, to the age recipient below.
+# Generate a keypair on your workstation:   age-keygen -o ~/.config/sops/age/keys.txt
+# Put the PUBLIC key (age1...) here; keep the private key in your password manager and
+# supply it at bootstrap (bootstrap.age_key_path).
+creation_rules:
+  - path_regex: .*\.sops\.ya?ml$
+    encrypted_regex: "^(data|stringData)$"
+    age: age19nl0dcd2a3vusvdyeyft6fsrzj5nzr0kudhat0mmqr7ljnu5u58q0v6zz4
