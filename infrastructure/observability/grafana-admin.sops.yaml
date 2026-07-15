@@ -1,0 +1,34 @@
+# ============================================================================
+#  REQUIRED BEFORE DEPLOY — this file is a PLAINTEXT PLACEHOLDER.
+#
+#  1. Set a real password below.
+#  2. Encrypt in place (the .sops.yaml rule encrypts data/stringData fields):
+#         sops --encrypt --in-place infrastructure/observability/grafana-admin.sops.yaml
+#  3. Commit ONLY the encrypted result. Never commit the plaintext password.
+#
+#  Flux decrypts this at reconcile time using the cluster's sops-age key.
+# ============================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+    name: grafana-admin
+    namespace: monitoring
+type: Opaque
+stringData:
+    admin-user: ENC[AES256_GCM,data:YTcQN60=,iv:inUuakllOL8Ow92mhrKxoCdpMPmanBhIiOh7AgxHHpc=,tag:4yfEYhxktesGtMjaQFDENQ==,type:str]
+    admin-password: ENC[AES256_GCM,data:uWMFqvhMfCSrQelZlRKyGBwXMqBBIbVGi5eF,iv:OE7ZFyhLaYc+qZ1miRH81Usdu2oOxJmLVjg6OnxXpXc=,tag:D+fXxCuG5jgxy73VjHb8xw==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB4S1VsM3liMVJyS2tRemtu
+            SlRKejh0dFdPeGlBc1IvS0dUd1BMRS85a3lrCjlTRWVDSzhNa3RGcUtMYXFGdXk0
+            cjRSWCtDOFMyRDcxZjE0UHJrb2xVZkkKLS0tIHpuOGJtT3pRV2JNRlRHcUlqNHM2
+            c0dsUVkxTWtjdDBoNFFoUlpvR0QxQ2MKTx3TSCMss4aB9Pp2hcLVGo0HbZEQQlQf
+            5nErJ2MGT9FsRlGDdiVgpMZsgofYmdQrLzA1/ZuNE7GHFDHoJSqlBg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age19nl0dcd2a3vusvdyeyft6fsrzj5nzr0kudhat0mmqr7ljnu5u58q0v6zz4
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-07-15T21:27:55Z"
+    mac: ENC[AES256_GCM,data:/VzlUYU6WwNNimIFjTdEEHH2TnyIY2VbnbhTG0jWEd+5WzP1/ptJOBWF3oIScdV9rIrEzF5w53kl5aNtSScXK2oaN5YMjMRXvKA5iqTVpKHdD04xFuyqRgNvQl6KdxzpsY2ie/Ne2+6puhL2qKgWiy5vlLEBEo4Ni4rhKhGgXbA=,iv:U3G53c/gIdfPFTKCRC0NEyS1pYUr1xLVX8hPog7+8D4=,tag:Lxk+kKcW+itqBZz880Knfw==,type:str]
+    version: 3.13.1
