@@ -32,6 +32,7 @@
               ansible-lint   # static analysis for playbooks and roles
               kubectl
               age
+              sops
             ];
 
             shellHook = ''
