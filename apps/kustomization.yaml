@@ -1,5 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# Placeholder — reconciles green with nothing to apply.
-# Increment 5 adds: tuned Postgres + a custom multi-arch web app, exposed via Traefik.
-resources: []
+# Reconciled by the `apps` Flux Kustomization (clusters/nimbus/apps.yaml), which
+# depends on infra-controllers + infra-storage and has SOPS decryption wired.
+resources:
+  - namespace.yaml
+  - valkey
+  - web
