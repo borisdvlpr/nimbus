@@ -1,0 +1,65 @@
+# Your custom multi-arch Go app (HTTP cache in front of Valkey), stateless.
+#
+# BEFORE THIS DEPLOYS, set two things to match your app:
+#   1. image      -> your GHCR image; it MUST include a linux/arm64 variant
+#   2. containerPort (and the probes) -> the port your app listens on
+# See docs/04-apps.md. If your GHCR package is private, add an imagePullSecret
+# (a SOPS-encrypted dockerconfigjson) — the doc shows how.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: web
+    app.kubernetes.io/part-of: nimbus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: web
+        app.kubernetes.io/part-of: nimbus
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          # >>> REPLACE: your image (multi-arch, must include linux/arm64). Pin a tag or @sha256. <<<
+          image: ghcr.io/OWNER/REPO:TAG
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080        # >>> set to the port your app listens on <<<
+          envFrom:
+            - configMapRef:
+                name: web-config          # Valkey endpoint (see configmap.yaml)
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi                # bump if your app needs more headroom
+          # TCP probes don't assume a health endpoint. If your app serves one
+          # (e.g. GET /healthz), switch these to httpGet for a stronger signal.
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            # Recommended: build the image to run as non-root, then add:
+            #   runAsNonRoot: true

@@ -1,0 +1,17 @@
+# Non-secret configuration for the web app, injected as environment variables.
+#
+# Your Go app reads its Valkey endpoint from an env var. The KEYS below must match
+# the names your app actually reads — rename them to fit (common conventions shown),
+# and delete whichever you don't use. Valkey speaks the Redis wire protocol, so
+# redis:// URLs and go-redis work unchanged.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-config
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: web
+    app.kubernetes.io/part-of: nimbus
+data:
+  REDIS_URL: "redis://valkey.apps.svc.cluster.local:6379"   # URL form (go-redis ParseURL)
+  REDIS_ADDR: "valkey.apps.svc.cluster.local:6379"          # host:port form
