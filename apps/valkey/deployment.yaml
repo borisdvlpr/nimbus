@@ -1,0 +1,68 @@
+# Valkey as an in-memory HTTP cache for the web app.
+# Deliberately ephemeral: no RDB, no AOF, no PersistentVolume — a cache is
+# regenerable, so nothing is persisted and there is no storage to bind. Memory is
+# bounded two ways: Valkey's own --maxmemory (data cap + LRU eviction) and the k8s
+# memory limit (process ceiling), with the limit set above maxmemory for overhead.
+#
+# Access is cluster-internal only (ClusterIP, no HTTPRoute). The image ships with
+# protected-mode off and we set no password; that is acceptable because the port is
+# never exposed outside the pod network. To require auth, see docs/04-apps.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/part-of: nimbus
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # single in-memory instance; never run two pods at once
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey
+        app.kubernetes.io/part-of: nimbus
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: valkey
+          image: valkey/valkey:9.1.0-alpine   # multi-arch (incl. arm64); pin @sha256:... for immutability
+          args:
+            - "--maxmemory"
+            - "128mb"                 # cache data cap — keep below the memory limit below
+            - "--maxmemory-policy"
+            - "allkeys-lru"           # evict least-recently-used keys when full (cache semantics)
+            - "--save"
+            - ""                      # disable RDB snapshots (pure cache, no disk writes)
+            - "--appendonly"
+            - "no"                    # disable AOF
+          ports:
+            - name: valkey
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 192Mi           # must exceed --maxmemory (128mb) plus allocator overhead
+          livenessProbe:
+            tcpSocket:
+              port: valkey
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]   # returns PONG when serving (accurate readiness)
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

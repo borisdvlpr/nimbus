@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/part-of: nimbus
+spec:
+  type: ClusterIP            # internal only; reached at valkey.apps.svc.cluster.local:6379
+  selector:
+    app.kubernetes.io/name: valkey
+  ports:
+    - name: valkey
+      port: 6379
+      targetPort: valkey
