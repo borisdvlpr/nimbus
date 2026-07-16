@@ -7,7 +7,7 @@
 # =============================================================================
 
 # --- Identity / locale -------------------------------------------------------
-homelab_user: nimbus # must match the cloud-init user AND inventory ansible_user
+homelab_user: nimbus           # must match the cloud-init user AND inventory ansible_user
 timezone: Europe/Lisbon
 locale: en_US.UTF-8
 
@@ -19,15 +19,15 @@ locale: en_US.UTF-8
 tailscale:
   hostname: nimbus
   tag: "tag:nimbus"
-  ssh: true # Tailscale SSH
-  accept_dns: true # MagicDNS
+  ssh: true                    # Tailscale SSH
+  accept_dns: true             # MagicDNS
   # advertise_routes: []       # optional subnet routing; off by default
 
 # --- Host tuning (required for Kind on Ubuntu/Pi) ----------------------------
 host_tuning:
   disable_openssh_server: true # mask the unused system sshd; rely on Tailscale SSH (console = recovery)
-  enable_memory_cgroup: true # append `cgroup_enable=memory cgroup_memory=1` to cmdline
-  cmdline_path: /boot/firmware/cmdline.txt # Ubuntu-on-Pi location
+  enable_memory_cgroup: true   # append `cgroup_enable=memory cgroup_memory=1` to cmdline
+  cmdline_path: /boot/firmware/cmdline.txt   # Ubuntu-on-Pi location
   disable_unattended_reboot: true
   zram_enabled: true
   zram_percent: 50
@@ -43,10 +43,10 @@ host_tuning:
 storage:
   mode: local
   base_dir: /srv/nimbus
-  volumes_subdir: volumes # PV host dirs: <data_dir>/<volumes_subdir>/<name>
-  relocate_docker_data_root: false # set true only in ssd mode (moves /var/lib/docker onto the SSD)
+  volumes_subdir: volumes            # PV host dirs: <data_dir>/<volumes_subdir>/<name>
+  relocate_docker_data_root: false   # set true only in ssd mode (moves /var/lib/docker onto the SSD)
   ssd:
-    fs_label: NIMBUS_SSD # label the SSD filesystem; mounted by label, never by /dev/sdX
+    fs_label: NIMBUS_SSD             # label the SSD filesystem; mounted by label, never by /dev/sdX
     mount_point: /mnt/data
     filesystem: ext4
     format_if_unformatted: false
@@ -79,11 +79,11 @@ kind:
 # The kind_cluster role binds the API server so it is reachable on the tailnet and adds the
 # node's tailnet identity to the API server certificate, so kubectl over the tailnet verifies TLS.
 apiserver:
-  bind: tailnet # tailnet (bind to the Tailscale IP, discovered at create time) | localhost
+  bind: tailnet               # tailnet (bind to the Tailscale IP, discovered at create time) | localhost
   port: 6443
   extra_sans:
-    - nimbus # MagicDNS short name; the FQDN + tailnet IP are added at create time
-  kubeconfig_server: "https://nimbus:6443" # what the distributed workstation kubeconfig points at
+    - nimbus                  # MagicDNS short name; the FQDN + tailnet IP are added at create time
+  kubeconfig_server: "https://nimbus:6443"   # what the distributed workstation kubeconfig points at
 
 # --- GitOps (Flux) -----------------------------------------------------------
 flux:
@@ -93,12 +93,12 @@ flux:
   git_host: github.com
   git_branch: main
   cluster_path: clusters/nimbus
-  components_extra: [] # leave image-automation / notification OFF to save RAM
+  components_extra: []        # leave image-automation / notification OFF to save RAM
 
 # --- Ingress -----------------------------------------------------------------
 ingress:
   provider: traefik
-  route_api: gateway # gateway (HTTPRoute, recommended) | ingress (classic) — see architecture.md
+  route_api: gateway          # gateway (HTTPRoute, recommended) | ingress (classic) — see architecture.md
 
 # --- Observability (kube-prometheus-stack, trimmed for 4 GB) -----------------
 observability:
@@ -106,12 +106,12 @@ observability:
   scrape_interval: 60s
   prometheus:
     retention: 7d
-    retention_size: 3GB # hard cap — important while running on SD
-    persist: true # static PV; moves to the SSD on migration
+    retention_size: 3GB       # hard cap — important while running on SD
+    persist: true             # static PV; moves to the SSD on migration
   grafana:
     enabled: true
   alertmanager:
-    enabled: false # off by default to protect the RAM budget
+    enabled: false            # off by default to protect the RAM budget
   node_exporter:
     enabled: true
   kube_state_metrics:
@@ -121,7 +121,7 @@ observability:
 # These are file PATHS, not secrets; the files themselves live outside the repo.
 # Set real paths here, or override at the command line with --extra-vars.
 bootstrap:
-  age_key_path: "~/.config/sops/age/keys.txt" # your age private key (SOPS decryption)
-  git_auth: ssh # ssh | https
-  git_private_key_path: "~/.ssh/nimbus_deploy" # repo deploy key with WRITE access (ssh auth)
-  git_token: "" # PAT for https auth; pass via --extra-vars, not here
+  age_key_path: "~/.config/sops/age/keys.txt"     # your age private key (SOPS decryption)
+  git_auth: ssh                                   # ssh | https
+  git_private_key_path: "~/.ssh/nimbus_deploy"    # repo deploy key with WRITE access (ssh auth)
+  git_token: ""                                   # PAT for https auth; pass via --extra-vars, not here
