@@ -125,3 +125,28 @@ bootstrap:
   git_auth: ssh                                   # ssh | https
   git_private_key_path: "~/.ssh/nimbus_deploy"    # repo deploy key with WRITE access (ssh auth)
   git_token: ""                                   # PAT for https auth; pass via --extra-vars, not here
+
+# --- Reliability (reboot recovery + optional backup) -------------------------
+# Delivered in increment 6. Host-level systemd only; no in-cluster footprint.
+recovery:
+  # Secure default: on boot a health-gated unit waits for the cluster to come back
+  # (the node container restarts itself via restart=unless-stopped). If it is still
+  # unhealthy after grace_seconds, the unit fails loudly and asks you to re-run
+  # scripts/install.sh from the controller (idempotent). No secrets are stored on the node.
+  grace_seconds: 300
+  # unattended: true lets the node self-heal by recreating the cluster and re-bootstrapping
+  # Flux with NO controller involvement. This REQUIRES persisting the age key and the git
+  # deploy key on the node at rest (root-only under /etc/nimbus/secrets) — i.e. secrets on a
+  # pullable SD card. Off by default; enable only if you accept that trade-off.
+  unattended: false
+
+backup:
+  # Off by default. Valkey is a cache (nothing to persist); the durable data is the
+  # Prometheus TSDB and any hand-made Grafana dashboards, both under volumes_dir. When
+  # enabled, a systemd timer archives volumes_dir locally (keeping `retain` copies) and,
+  # if `dest` is set, rsyncs each archive to an off-device tailnet target over Tailscale SSH.
+  enabled: false
+  schedule: "daily"                # systemd OnCalendar (e.g. daily, weekly, "*-*-* 03:00:00")
+  retain: 7                        # local archives to keep
+  local_dir: "/var/backups/nimbus"
+  dest: ""                         # optional, e.g. backupuser@backup-host:/srv/nimbus-backups

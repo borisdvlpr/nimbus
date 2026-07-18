@@ -1,0 +1,9 @@
+[Unit]
+Description=nimbus PV backup schedule
+
+[Timer]
+OnCalendar={{ backup.schedule | default('daily') }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

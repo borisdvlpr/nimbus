@@ -1,0 +1,14 @@
+[Unit]
+Description=nimbus cluster reboot recovery (health-gated)
+After=docker.service tailscaled.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/local/bin/nimbus-recovery.sh
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target

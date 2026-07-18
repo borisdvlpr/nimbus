@@ -1,0 +1,7 @@
+[Unit]
+Description=nimbus PV backup
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/nimbus-backup.sh

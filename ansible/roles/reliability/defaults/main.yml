@@ -1,0 +1,5 @@
+---
+# Internal paths for the reliability role. User-facing knobs live in
+# group_vars/all.yml under `recovery:` and `backup:`.
+nimbus_conf_dir: /etc/nimbus
+nimbus_secrets_dir: /etc/nimbus/secrets
