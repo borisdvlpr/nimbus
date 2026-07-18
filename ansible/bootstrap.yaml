@@ -19,3 +19,4 @@
     - tooling            # kind, kubectl, helm, flux, sops, age
     - kind_cluster       # render config, create cluster, tailnet API SANs, kubeconfig
     - flux_bootstrap     # install Flux, point it at the repo, wire SOPS decryption
+    - reliability        # reboot-recovery systemd unit (+ optional PV backup)
