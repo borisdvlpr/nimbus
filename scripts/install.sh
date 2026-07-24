@@ -111,7 +111,7 @@ preflight() {
       die "secret is not encrypted: $f
     encrypt it first:  sops --encrypt --in-place \"$f\""
     fi
-  done < <(find . -name '*.sops.yaml' -not -path './.git/*' 2>/dev/null)
+  done < <(find . -name '*.sops.yaml' -not -name '.sops.yaml' -not -path './.git/*' 2>/dev/null)
   ok "all *.sops.yaml secret files are SOPS-encrypted"
 
   # the web app image placeholder must be set, or the apps Kustomization never becomes Ready
