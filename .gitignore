@@ -5,6 +5,8 @@ age.key
 *.decrypted.*
 .sops-key*
 secrets.local.*
+*.local
+kubeconfig/
 
 # ansible
 .ansible
@@ -13,6 +15,7 @@ ansible/inventory.local.ini
 
 # editor
 .idea/
+.vscode
 .zed/
 
 # misc
