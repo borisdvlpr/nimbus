@@ -14,7 +14,7 @@
 #
 # Prereqs (see docs/01-bootstrap.md): the node is on your tailnet as `nimbus`,
 # this repo is pushed to flux.git_url, and your bootstrap secret files (age key,
-# git deploy key) exist at the paths in ansible/group_vars/all.yml.
+# git deploy key) exist at the paths in ansible/group_vars/all.yaml.
 #
 # Usage:
 #   scripts/install.sh                       # checks -> galaxy -> playbook -> wait
@@ -30,12 +30,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
-ALL_YML="ansible/group_vars/all.yml"
+ALL_YML="ansible/group_vars/all.yaml"
 SOPS_CFG=".sops.yaml"
 KUBECONFIG_OUT="kubeconfig/nimbus.yaml"
-PLAYBOOK="ansible/bootstrap.yml"
+PLAYBOOK="ansible/bootstrap.yaml"
 INVENTORY="ansible/inventory.ini"
-REQUIREMENTS="ansible/requirements.yml"
+REQUIREMENTS="ansible/requirements.yaml"
 
 DO_PREFLIGHT=1; DO_WAIT=1; PASSTHRU=()
 while [[ $# -gt 0 ]]; do
