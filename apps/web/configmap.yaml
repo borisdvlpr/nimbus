@@ -1,9 +1,9 @@
-# Non-secret configuration for the web app, injected as environment variables.
+# Non-secret configuration for epicshelter, injected as environment variables.
 #
-# Your Go app reads its Valkey endpoint from an env var. The KEYS below must match
-# the names your app actually reads — rename them to fit (common conventions shown),
-# and delete whichever you don't use. Valkey speaks the Redis wire protocol, so
-# redis:// URLs and go-redis work unchanged.
+# CACHE_URL points at the in-cluster Valkey Service. Valkey speaks the Redis wire
+# protocol, so redis:// URLs and go-redis work unchanged. The DNS name is stable:
+# <service>.<namespace>.svc.cluster.local, and Valkey has no auth by default
+# (it is never exposed outside the pod network — see docs/04-apps.md).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13,5 +13,4 @@ metadata:
     app.kubernetes.io/name: web
     app.kubernetes.io/part-of: nimbus
 data:
-  REDIS_URL: "redis://valkey.apps.svc.cluster.local:6379"   # URL form (go-redis ParseURL)
-  REDIS_ADDR: "valkey.apps.svc.cluster.local:6379"          # host:port form
+  CACHE_URL: "valkey.apps.svc.cluster.local:6379"

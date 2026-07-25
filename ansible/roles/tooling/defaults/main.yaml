@@ -1,10 +1,12 @@
 ---
 # SHA256 checksums for binaries fetched directly from GitHub releases (kind, sops, flux),
 # where there is no convenient per-file upstream checksum URL to point get_url at. These are
-# PLACEHOLDERS and are invalid on purpose: the download tasks fail until you replace each with
-# the real linux/arm64 checksum for the version pinned in group_vars/all.yml.
+# REAL, verified checksums for the linux/arm64 assets of the versions pinned in
+# group_vars/all.yaml — get_url fails closed if a download does not match, so an unverified
+# binary is never installed.
 #
-# Where to find them:
+# WHEN YOU BUMP A VERSION in group_vars/all.yaml, update the matching checksum here or the
+# tooling role will fail. Where to find them:
 #   kind  — the kind-linux-arm64 line in the release's checksum assets / release notes
 #   sops  — the *.linux.arm64 line in the sops release checksums
 #   flux  — the flux_<version>_linux_arm64.tar.gz line in flux_<version>_checksums.txt
