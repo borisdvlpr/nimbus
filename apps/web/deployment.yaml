@@ -1,9 +1,9 @@
-# Your custom multi-arch Go app (HTTP cache in front of Valkey), stateless.
+# epicshelter — your custom multi-arch Go app (HTTP cache in front of Valkey), stateless.
 #
-# BEFORE THIS DEPLOYS, set two things to match your app:
-#   1. image      -> your GHCR image; it MUST include a linux/arm64 variant
+# BEFORE THIS DEPLOYS, confirm two things match your app:
+#   1. image      -> pin a real tag or @sha256; it MUST include a linux/arm64 variant
 #   2. containerPort (and the probes) -> the port your app listens on
-# See docs/04-apps.md. If your GHCR package is private, add an imagePullSecret
+# See docs/04-apps.md. If the Docker Hub repository is private, add an imagePullSecret
 # (a SOPS-encrypted dockerconfigjson) — the doc shows how.
 apiVersion: apps/v1
 kind: Deployment
@@ -29,15 +29,14 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          # >>> REPLACE: your image (multi-arch, must include linux/arm64). Pin a tag or @sha256. <<<
-          image: ghcr.io/OWNER/REPO:TAG
+          image: docker.io/b0risdvlpr/epicshelter:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
-              containerPort: 8080        # >>> set to the port your app listens on <<<
+              containerPort: 3000         # >>> set to the port epicshelter listens on <<<
           envFrom:
             - configMapRef:
-                name: web-config          # Valkey endpoint (see configmap.yaml)
+                name: web-config          # CACHE_URL -> Valkey (see configmap.yaml)
           resources:
             requests:
               cpu: 25m
