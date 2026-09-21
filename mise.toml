@@ -1,0 +1,20 @@
+# mise.toml — Development environment for the nimbus project
+# https://mise.jdx.dev
+#
+# Install mise, then from this directory:
+#   mise trust
+#   mise install
+
+[tools]
+ansible = "latest"
+# ansible-lint has no registry shorthand, so pipx: is spelled out explicitly
+"pipx:ansible-lint" = "latest"
+kubectl = "latest"
+age = "latest"
+sops = "latest"
+
+[hooks]
+enter = "echo 'Welcome to nimbus!'"
+
+[shell_alias]
+k = "kubectl"
